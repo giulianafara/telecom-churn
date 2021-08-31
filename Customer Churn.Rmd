@@ -1,0 +1,570 @@
+---
+title: "**Customer Churn em Operadoras de Telecom**"
+author: "*Giuliana Farabolini*"
+date: "*4/11/2021*"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+![](https://miro.medium.com/max/1400/0*sTBlmz5hsAiHRlPO)
+
+# **1.Objetivo**
+
+O projeto possui o foco de criar um modelo de aprendizado de máquina para prever se um cliente pode ou não cancelar seu plano e a probabilidade disso ocorrer. Para desenvolver o estudo utilizaremos a linguagem R.
+
+# **2. Introdução**
+
+## 2.1 O que é Customer Churn?
+
+Churn é uma métrica que indica o número de clientes que reincidem seus contratos em determinado período. Para calcular o churn, o que você precisa fazer é somar o número de clientes que cancelou seu produto/serviço no período analisado.
+
+Para que uma empresa consiga fazer a expansão da sua base de clientes, é preciso que o número de novos clientes exceda o seu churn rate – a taxa de clientes cancelados.
+
+- Churn = total de clientes cancelados
+
+*Fonte: (https://resultadosdigitais.com.br/blog/o-que-e-churn/); acessado em 11 de abril de 2021.*
+
+## 2.2 O que é análise preditiva?
+
+Análise preditiva é uma técnica analítica avançada que usa dados, algoritmos e machine learning para antecipar tendências e fazer projeções nos negócios. Graças ao avanço computacional, já é possível analisar grandes volumes de dados (Big Data) para encontrar padrões e avaliar as futuras possibilidades a partir do histórico da empresa.
+
+*Autor: Patel, Neil; (https://neilpatel.com/br/blog/analise-preditiva/); acessado em 11 de abril de 2021.*
+
+## 2.3 Por que usar análise preditiva para diminuir churn rate?
+
+- Gerenciar riscos;
+- Suportar a tomada de decisão;
+- Diminuir custos;
+- Aumentar o alcance dos negócios;
+- Identificar produtos mais desejados;
+- Prever Churn;
+- Detectar fraudes.
+
+*Autor: Alcantara, Joyce; (https://e-millennium.com.br/o-que-e-analise-preditiva-e-como-ela-agrega-valor-para-os-negocios/); acessado em 11 de abril de 2021.*
+
+# **3. Dataset**
+
+## 3.1 Obtenção e importação dos dados
+
+O banco de dados foi extraído do site Kaggle e vamos importá-lo para software.
+
+```{r}
+churn <- read.csv('/Users/giulianafarabolini/Downloads/WA_Fn-UseC_-Telco-Customer-Churn.csv')
+```
+
+## 3.2 Dicionário:
+
+ - **customerID:** 7043 ID’s únicos, cada um representando um cliente;
+
+ - **gender:** gênero do cliente;
+
+ - **SeniorCitizen:** se o cliente é idoso ou não;
+
+ - **Partner:** se cliente tem um cônjuge ou não;
+
+ - **Dependents:** se o cliente possui dependentes ou não;
+
+ - **tenure:** número de meses que o cliente está/ficou na companhia;
+
+ - **PhoneService:** se o cliente possui serviço de telefone ou não;
+
+ - **MultipleLines:** se o cliente possui múltiplas linhas de telefone;
+
+ - **InternetService:** tipo de serviço de internet;
+
+ - **OnlineSecurity:** se o cliente possui algum tipo de proteção online;
+
+ - **OnlineBackup:** se o cliente tem backup online;
+
+ - **DeviceProtection:** se o cliente possui algum tipo de proteção para celular;
+
+ - **TechSupport:** se o cliente tem suporte técnico;
+
+ - **StreamingTV:** se o cliente tem serviço de streaming de TV (TV por assinatura);
+
+ - **StreamingMovies:** se o cliente tem algum tipo de serviço de streaming para filmes (Netflix, Telecine, Amazon Prime, etc...);
+
+ - **Contract:** duração do contrato;
+
+ - **PaperlessBilling:** se o cliente recebe a fatura virtualmente (sem a impressão de papel);
+
+ - **PaymentMethod:** método de pagamento utilizado;
+
+ - **MonthlyCharges:** valor da fatura mensal do cliente;
+
+ - **TotalCharges:** valor total já pago pelo cliente;
+
+ - **Churn:** variável indicando se o cliente rescindiu ou não seu contrato com a companhia no último mês.
+ 
+Vamos analisar o banco de dados e suas características:
+
+```{r}
+str(churn)
+```
+
+A tabela é composta por 7.043 observações(linhas) e 21 variáveis (colunas).
+
+# 3.3 Limpeza e preparação dos dados
+
+A maioria das variáveis entrou como classificação *caracter*, porém a maior parte da base  é *factor*, por isso vamos alterar suas classes:
+
+```{r}
+library(dplyr)
+
+churn <- churn %>% 
+  mutate_at(vars(2:5,7:18,21), as.factor)
+```
+
+As colunas 10 a 15 tem observações que são diferentes, mas possuem o mesmo significado. Para facilitar a análise iremos substitui-las e unificar as observações.
+
+```{r}
+churn[churn == 'No internet service'] <- 'No'
+```
+
+O mesmo acontece com a coluna *MultipleLines*, vamos repetir a ação anterior, porém com a observação *"No phone service"*.
+
+```{r}
+levels(churn$MultipleLines)
+levels(churn$MultipleLines) <- c('No', 'No', 'Yes')
+```
+
+Já a coluna *SeniorCitizen* traz a informação '1' para quem é idoso e '0' para o contrário, como feito anteriormente vamos substituir esses valores para 'Yes' e 'No', respectivamente para uniformizar nossa base.
+
+```{r}
+levels(churn$SeniorCitizen)
+levels(churn$SeniorCitizen) <- c('No', 'Yes')
+```
+
+Verificando se a base possui valores nulos
+
+```{r}
+sum(is.na(churn))
+```
+
+Temos valores nulos, agora vamos identificar em qual coluna estão:
+
+```{r}
+sapply(churn, function(x) sum(is.na(x)))
+```
+
+Observamos que todos os valores nulos estão na coluna *TotalCharges*, mas como o dataset nos traz os valores pagos no mês e tempo do contrato, podemos criar os valores nulos se houver necessidade.
+
+```{r}
+churn[is.na(churn$TotalCharges),1:6]
+```
+Vemos que os clientes que estão com valores nulos é porque possuem o tempo de contrato zero, ou seja, não realizaram o primeiro pagamento. Será que temos outros clientes com o tempo de contrato zerado?
+
+```{r}
+library(dplyr)
+churn %>%
+    filter(tenure == 0) %>%
+    summarize("Zero Tenure" = n())
+```
+
+Esses são os únicos clientes, então vamos removê-los do dataset, já que não possuem um tempo considerável de contrato para influenciar as nossas análises, além do que essas observações representam apenas 0,15% do banco de dados total.
+
+```{r}
+nondchurn <- churn[complete.cases(churn), ]
+dim(nondchurn)
+```
+
+Não precisaremos da variável *customerID* para gráficos ou modelagem, portanto, ela pode ser removida.
+
+```{r}
+nvdatasetchurn <- nondchurn %>%
+                select(-customerID)
+```
+
+# **4. Análise Exploratória**
+
+## 4.1 Taxa Churn
+
+O conjunto de dados nos traz que 26,58% dos clientes reincidiram os contratos.
+
+```{r}
+library(ggplot2)
+
+nvdatasetchurn %>% 
+  group_by(Churn) %>% 
+  summarise(Number = n()) %>%
+  mutate(Percentual = prop.table(Number)*100) %>% 
+ggplot(aes(Churn, Percentual)) + 
+  geom_col(aes(fill = Churn)) +
+  labs(title = "Taxa Churn") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_text(aes(label = sprintf("%.2f%%", Percentual)), hjust = 0.5,vjust =1, size = 4) +
+  theme_minimal()
+```
+
+## 4.2 Perfil do cliente churn
+
+Antes de começarmos a fazer nossa modelagem, vamos analisar os perfis dos clientes.
+
+```{r}
+library(cowplot)
+library(stringr)
+
+plot_grid(ggplot(nvdatasetchurn, aes(x = gender, fill = Churn)) +
+            geom_bar() +
+            geom_text(aes(y = ..count.. -200, 
+                          label = paste0(round(prop.table(..count..),4) * 100, '%')),
+                      stat = 'count', position = position_dodge(.1), size = 3)+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = SeniorCitizen, fill = Churn)) +
+            geom_bar() +
+            geom_text(aes(y = ..count.. -200, 
+                          label = paste0(round(prop.table(..count..),4) * 100, '%')),
+                      stat = 'count', position = position_dodge(.1), size = 3)+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = Partner, fill = Churn)) +
+            geom_bar() +
+            geom_text(aes(y = ..count.. -200, 
+                          label = paste0(round(prop.table(..count..),4) * 100, '%')),
+                      stat = 'count', position = position_dodge(.1), size = 3)+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = Dependents, fill = Churn)) +
+            geom_bar() +
+            geom_text(aes(y = ..count.. -200, 
+                          label = paste0(round(prop.table(..count..),4) * 100, '%')),
+                      stat = 'count', position = position_dodge(.1), size = 3)+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()))+
+        labs(title = "Perfil do Cliente") +
+        theme(plot.title = element_text(hjust = 0.5))
+```
+
+A partir dos gráficos podemos ver que a mostra é dívida uniformemente por gênero e status de parceiro. Uma minoria da amostra é idosa e a grande maioria não possui dependentes. Conseguimos perceber que o perfil dos clientes não churn e dos clientes churn diferem apenas na variável *partner*, onde os clientes que reincidiram o contrato a maioria não possui companheiro e já os clientes não churn a maioria possui companheiros.
+
+```{r}
+ggplot(nvdatasetchurn, aes(x = tenure, fill = Churn)) +
+  geom_bar() +
+  labs(x = "Tenure") +
+  theme_minimal()
+```
+
+A maioria dos clientes churn, cancelam seus contratos antes de completar 2 meses, como podemos observar no gráfico acima.
+
+```{r}
+plot_grid(ggplot(nvdatasetchurn, aes(x = Contract, fill = Churn)) +
+            geom_bar() +
+            geom_text(aes(y = ..count.. -200, 
+                          label = paste0(round(prop.table(..count..),4) * 100, '%')),
+                      stat = 'count', position = position_dodge(.1), size = 3)+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = PaymentMethod, fill = Churn)) +
+            geom_bar() +
+            geom_text(aes(y = ..count.. -200, 
+                          label = paste0(round(prop.table(..count..),4) * 100, '%')),
+                      stat = 'count', position = position_dodge(.1), size = 3)+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = InternetService, fill = Churn)) +
+            geom_bar() +
+            geom_text(aes(y = ..count.. -200, 
+                          label = paste0(round(prop.table(..count..),4) * 100, '%')),
+                      stat = 'count', position = position_dodge(.1), size = 3)+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()))
+```
+
+A maior parte dos clientes churn preferem o meio de pagamento Eletronic Check e possuem contratos mensais. Também preferem pelo serviço de internet Fiber optic.
+
+Vamos dar uma olhada nas demais variáveis:
+```{r}
+plot_grid(ggplot(nvdatasetchurn, aes(x = PhoneService, fill = Churn)) +
+            geom_bar()+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = MultipleLines, fill = Churn)) +
+            geom_bar()+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = OnlineBackup, fill = Churn)) +
+            geom_bar()+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = DeviceProtection, fill = Churn)) +
+            geom_bar()+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = TechSupport, fill = Churn)) +
+            geom_bar()+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = StreamingTV, fill = Churn)) +
+            geom_bar()+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = StreamingTV, fill = Churn)) +
+            geom_bar()+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()),
+          ggplot(nvdatasetchurn, aes(x = StreamingMovies, fill = Churn)) +
+            geom_bar()+
+            theme_minimal()+
+             theme(axis.text.y = element_blank(), 
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank()))+
+        labs(title = "Demais Serviços") +
+        theme(plot.title = element_text(hjust = 0.5))
+```
+
+# **5. Modelo**
+
+Neste projeto, usarei 3 modelos de aprendizado de máquina (Naive Bayes, Decision Tree e Random Forest).
+Para começar a realizar os modelos, vamos primeiramente dividir a base de dados em dois. O subconjunto de treinamento será aproximadamente 70% da amostra original, com o restante sendo o subconjunto de teste.
+
+```{r}
+library(caret)
+set.seed(56)
+split_train_test <- createDataPartition(nvdatasetchurn$Churn,p=0.7,list=FALSE)
+dtrain<- nvdatasetchurn[split_train_test,]
+dtest<-  nvdatasetchurn[-split_train_test,]
+```
+
+
+## 5.1 Decision Tree
+
+A análise da árvore de decisão é um método de classificação que usa modelos de decisões em forma de árvore e seus possíveis resultados. Este método exploratório identificará as variáveis mais importantes relacionadas ao churn em um formato hierárquico.
+
+```{r}
+library(rpart)
+library(rpart.plot)
+
+tr_fit <- rpart(Churn ~., data = dtrain, method="class")
+rpart.plot(tr_fit)
+```
+
+A variável mais importante é *Contract*. Com o modelo podemos ver que os clientes mais engajados preferem contratos anuais, serviço de internet DSL e permanecem na empresa mais de 15 meses.
+
+Para avaliar a precisão da nossa árvore de decisão vamos utilizar a matriz de confusão:
+```{r}
+tr_prob1 <- predict(tr_fit, dtest)
+tr_pred1 <- ifelse(tr_prob1[,2] > 0.5,"Yes","No")
+table(Predicted = tr_pred1, Actual = dtest$Churn)
+```
+
+A partir dessa matriz de confusão, podemos ver que o modelo tem um bom desempenho na previsão de clientes não rotativos, mas não tem um desempenho tão bom na previsão de clientes rotativos.
+
+E quanto a acuracidade do modelo?
+```{r}
+tr_prob2 <- predict(tr_fit, dtrain)
+tr_pred2 <- ifelse(tr_prob2[,2] > 0.5,"Yes","No")
+tr_tab1 <- table(Predicted = tr_pred2, Actual = dtrain$Churn)
+tr_tab2 <- table(Predicted = tr_pred1, Actual = dtest$Churn)
+
+# Treinamento
+library(caret)
+confusionMatrix(
+  as.factor(tr_pred2),
+  as.factor(dtrain$Churn),
+  positive = "Yes" 
+)
+```
+
+```{r}
+# Teste
+confusionMatrix(
+as.factor(tr_pred1),
+  as.factor(dtest$Churn),
+  positive = "Yes" 
+)
+```
+
+```{r}
+tr_acc <- sum(diag(tr_tab2))/sum(tr_tab2)
+tr_acc
+```
+
+O modelo de árvore de decisão é bastante preciso, prevendo corretamente o status de rotatividade de clientes no subconjunto de teste 79% do tempo.
+
+
+## 5.2 Random forest
+
+A análise floresta aleatória é outro método de classificação de aprendizado de máquina freqüentemente usado na análise de rotatividade de clientes. O método opera construindo múltiplas árvores de decisão e construindo modelos com base em estatísticas resumidas dessas árvores de decisão.
+
+Começaremos identificando o número de variáveis amostradas aleatoriamente. No pacote *randomForest*, isso é referido como o parâmetro ou argumento *‘mtry’*.
+
+```{r}
+#Definir parâmetros de controle para seleção aleatória de modelo de floresta
+ctrl <- trainControl(method = "cv", number=5, 
+                     classProbs = TRUE, summaryFunction = twoClassSummary)
+
+#Seleção exploratória de modelo de floresta aleatória
+rf_fit1 <- train(Churn ~., data = dtrain,
+                 method = "rf",
+                 ntree = 75,
+                 tuneLength = 5,
+                 metric = "ROC",
+                 trControl = ctrl)
+rf_fit1
+
+saveRDS(rf_fit1, "Churn.RDS")
+
+rf_fit1 <- readRDS("Churn.RDS")
+```
+
+O modelo descobriu que o valor ideal para *mtry* é 2. A partir deste modelo, podemos investigar a importância relativa das variáveis preditoras de rotatividade.
+
+```{r}
+library(randomForest)
+rf_fit2 <- randomForest(Churn ~., data = dtrain, 
+                        ntree = 75, mtry = 2, 
+                        importance = TRUE, proximity = TRUE)
+
+# Mostra a importância da variável da árvore aleatória
+varImpPlot(rf_fit2, sort=T, n.var = 10, 
+           main = 'Top 10 variáveis importantes')
+```
+
+Semelhante à árvore de decisão, este modelo de floresta aleatório identificou *tenure* e *Contract* como preditores importantes para a rotatividade. Em contrapartida *Internet Service* não está entre os top 3 e é substituída por *TotalCharges*.
+
+Vamos examinar o desempenho deste modelo de floresta aleatório. Começaremos com a matriz de confusão.
+
+```{r}
+rf_pred1 <- predict(rf_fit2, dtest)
+table(Predicted = rf_pred1, Actual = dtest$Churn)
+```
+
+```{r}
+plot(rf_fit2)
+```
+
+O desempenho é um tanto semelhante ao modelo de árvore de decisão. A taxa de falsos negativos é baixa, mas a taxa de falsos positivos é bastante alta. E quanto à precisão geral?
+
+```{r}
+rf_pred2 <- predict(rf_fit2, dtrain)
+rf_tab1 <- table(Predicted = rf_pred2, Actual = dtrain$Churn)
+rf_tab2 <- table(Predicted = rf_pred1, Actual = dtest$Churn)
+
+# Treinamento
+confusionMatrix(
+  as.factor(rf_pred2),
+  as.factor(dtrain$Churn),
+  positive = "Yes" 
+)
+```
+
+```{r}
+# Teste
+confusionMatrix(
+as.factor(rf_pred1),
+  as.factor(dtest$Churn),
+  positive = "Yes" 
+)
+```
+
+```{r}
+rf_acc <- sum(diag(rf_tab2))/sum(rf_tab2)
+rf_acc
+```
+
+O modelo de floresta aleatória é um pouco mais preciso do que o modelo de árvore de decisão, sendo capaz de prever corretamente o status de rotatividade de um cliente no subconjunto de teste com 80% de precisão.
+
+
+## 5.3 Logistic regression analysis
+
+A regressão logística envolve a regressão de variáveis preditoras em um resultado binário usando uma função de ligação binomial. Vamos ajustar o modelo usando a função de modelagem linear geral básica em R, *'glm'*.
+
+```{r}
+lr_fit <- glm(Churn ~., data = dtrain,
+          family=binomial(link='logit'))
+summary(lr_fit)
+```
+
+As variáveis *tenure*, *Contract* e *TotalCharges* têm os valores *p* mais baixos e podem ser identificados como os melhores preditores de rotatividade de clientes.
+
+Vamos examinar a matriz de confusão com base em nosso modelo de regressão logística.
+
+```{r}
+lr_prob1 <- predict(lr_fit, dtest, type="response")
+lr_pred1 <- ifelse(lr_prob1 > 0.5,"Yes","No")
+table(Predicted = lr_pred1, Actual = dtest$Churn)
+```
+
+Semelhante aos outros modelos, a taxa de falsos negativos é baixa, porém não tão baixa. Em contrapartida, a taxa de falsos positivos está na verdade acima de 50%, portanto, tem um desempenho melhor do que os algoritmos de aprendizado de máquina anteriores.
+
+A acuracidade pode ser obtida de forma semelhante aos modelos anteriores.
+
+```{r}
+lr_prob2 <- predict(lr_fit, dtrain, type="response")
+lr_pred2 <- ifelse(lr_prob2 > 0.5,"Yes","No")
+lr_tab1 <- table(Predicted = lr_pred2, Actual = dtrain$Churn)
+lr_tab2 <- table(Predicted = lr_pred1, Actual = dtest$Churn)
+```
+
+```{r}
+# Treinamento
+confusionMatrix(
+  as.factor(lr_pred2),
+  as.factor(dtrain$Churn),
+  positive = "Yes" 
+)
+```
+
+```{r}
+# Teste
+confusionMatrix(
+as.factor(lr_pred1),
+  as.factor(dtest$Churn),
+  positive = "Yes" 
+)
+```
+
+```{r}
+lr_acc <- sum(diag(lr_tab2))/sum(lr_tab2)
+lr_acc
+```
+
+A taxa de precisão de 81,4% do modelo de regressão logística supera ligeiramente os modelos de árvore de decisão e floresta aleatória.
+
+
+# **6. Conclusão**
+
+Depois de passar por várias etapas preparatórias, incluindo carregamento de dados/biblioteca e pré-processamento, realizamos três métodos de classificação estatística comuns na análise de churn. Identificamos várias variáveis preditoras de rotatividade importantes desses modelos e comparamos esses modelos em medidas de precisão.
+
+Em suma:
+
+- Clientes com contratos mensais são menos engajados;
+- Os clientes com serviço de Internet, em particular serviço de fibra ótica, têm maior probabilidade de rotatividade;
+- Os clientes que possuem contratos longos ou que pagaram mais no total têm menos probabilidade de desistir; 
+- A regressão logística, embora seja um método menos complicado, superou os métodos baseados em aprendizado de máquina de árvore de decisão e análise de floresta aleatória. Embora a regressão logística tenha tido um desempenho ligeiramente inferior em termos de falsos negativos, ela teve uma taxa de falsos positivos melhor e foi mais precisa em geral.
+
+
+
+
+
